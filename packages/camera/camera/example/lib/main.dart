@@ -9,7 +9,9 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:image/image.dart' as imglib;
 
 class CameraExampleHome extends StatefulWidget {
   @override
@@ -254,12 +256,99 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
               color: Colors.blue,
               onPressed: controller != null ? onAudioModeButtonPressed : null,
             ),
+            // !!!!!!!!!!!!!!!
+            // this is added
+            IconButton(
+              icon: const Icon(Icons.stop),
+              color: Colors.red,
+              onPressed: controller != null &&
+                      controller.value.isInitialized &&
+                      controller.value.isRecordingVideo
+                  ? onStopButtonPressed
+                  : null,
+            ),
+            _imageStreamButton()
           ],
         ),
         _flashModeControlRowWidget(),
         _exposureModeControlRowWidget(),
       ],
     );
+  }
+
+  // !!!!!!!!!!!!!!!
+// this is added
+  Widget _imageStreamButton() {
+    return IconButton(
+      icon: const Icon(Icons.image),
+      color: Colors.blue,
+      onPressed: controller != null &&
+              controller.value.isInitialized &&
+              !controller.value.isRecordingVideo
+          ? onImageStreamButtonClicked
+          : null,
+    );
+  }
+
+// !!!!!!!!!!!!!!!
+// this is added
+  void onImageStreamButtonClicked() async {
+    StreamController<CameraImage> imageStream = StreamController();
+    await controller.startImageStream((image) => imageStream.add(image));
+    try {
+      var dir = await getExternalStorageDirectory();
+      debugPrint("written to $dir");
+      var counter = 0;
+      await for (var image in imageStream.stream.take(5)) {
+        // convert the image into a format that we can save into a file
+        var convertedImage = convertCameraImage(image);
+        File("${dir.path}/${DateTime.now().millisecondsSinceEpoch}_$counter.jpg")
+            .writeAsBytesSync(imglib.encodeJpg(convertedImage, quality: 30));
+        counter++;
+      }
+
+      debugPrint("finished image stream");
+    } finally {
+      await controller.stopImageStream();
+      await imageStream.close();
+    }
+  }
+
+// !!!!!!!!!!!!!!!
+// this is added
+  imglib.Image convertCameraImage(CameraImage image) {
+    int width = image.width;
+    int height = image.height;
+    const aa = 1436 / 1024;
+    const bb = 46549 / 131072;
+    const cc = 1814 / 1024;
+    const dd = 93604 / 131072;
+// imglib -> Image package from https://pub.dartlang.org/packages/image
+    var img = imglib.Image(width, height); // Create Image buffer
+    const int hexFF = 0xFF000000;
+    final int uvyButtonStride = image.planes[1].bytesPerRow;
+    final int uvPixelStride = image.planes[1].bytesPerPixel;
+    for (int x = 0; x < width; x++) {
+      for (int y = 0; y < height; y++) {
+        final int uvIndex =
+            uvPixelStride * (x / 2).floor() + uvyButtonStride * (y / 2).floor();
+        final int index = y * width + x;
+        final yp = image.planes[0].bytes[index];
+        final up = image.planes[1].bytes[uvIndex];
+        final vp = image.planes[2].bytes[uvIndex];
+// Calculate pixel color
+
+        int r = (yp + vp * aa - 179).round().clamp(0, 255);
+        int g = (yp - up * bb + 44 - vp * dd + 91).round().clamp(0, 255);
+        int b = (yp + up * cc - 227).round().clamp(0, 255);
+// color: 0x FF  FF  FF  FF
+//           A   B   G   R
+        img.data[index] = hexFF | (b << 16) | (g << 8) | r;
+      }
+    }
+// Rotate 90 degrees to upright
+    var img1 = imglib.copyRotate(img, 90);
+    return img1;
   }
 
   Widget _flashModeControlRowWidget() {
