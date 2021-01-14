@@ -1,3 +1,7 @@
+## 0.7.0+2
+
+* Added the Android FLASHLIGHT permission to the AndroidManifest.xml file. This will automatically add the permission to Apps using the plugin, making sure it prevents crashes on some Android devices when using the flash.
+
 ## 0.7.0+1
 
 * Fixes picture captures causing a crash on some Huawei devices.
