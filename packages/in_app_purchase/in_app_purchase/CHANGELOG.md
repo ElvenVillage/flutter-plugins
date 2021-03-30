@@ -1,3 +1,7 @@
+## 0.5.1+2
+
+* Updated the README with an example on how to complete purchase and an overview pointing to the example code for each of the implementation steps.
+
 ## 0.5.1+1
 
 * Fix error message when trying to consume purchase on iOS.

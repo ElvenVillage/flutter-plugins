@@ -76,7 +76,7 @@ class _MyAppState extends State<MyApp> {
     final Stream purchaseUpdates =
         InAppPurchaseConnection.instance.purchaseUpdatedStream;
     _subscription = purchaseUpdates.listen((purchases) {
-      _handlePurchaseUpdates(purchases);
+      _listenToPurchaseUpdated(purchases);
     });
     super.initState();
   }
@@ -133,24 +133,6 @@ once they're marked as consumed and fails to return them here. For restoring
 these across devices you'll need to persist them on your own server and query
 that as well.
 
-### Listening to purchase updates
-
-You should always start listening to purchase update as early as possible to be able
-to catch all purchase updates, including the ones from the previous app session.
-To listen to the update:
-
-```dart
-  Stream purchaseUpdated =
-      InAppPurchaseConnection.instance.purchaseUpdatedStream;
-  _subscription = purchaseUpdated.listen((purchaseDetailsList) {
-    _listenToPurchaseUpdated(purchaseDetailsList);
-  }, onDone: () {
-    _subscription.cancel();
-  }, onError: (error) {
-    // handle error here.
-  });
-```
-
 ### Making a purchase
 
 Both storefronts handle consumable and non-consumable products differently. If
@@ -169,12 +151,54 @@ if (_isConsumable(productDetails)) {
 // Updates will be delivered to the `InAppPurchaseConnection.instance.purchaseUpdatedStream`.
 ```
 
+### Listening to purchase updates
+
+You should always start listening to purchase update as early as possible to be able
+to catch all purchase updates, including the ones from the previous app session.
+To listen to the update:
+
+```dart
+  Stream purchaseUpdated =
+      InAppPurchaseConnection.instance.purchaseUpdatedStream;
+  _subscription = purchaseUpdated.listen((purchaseDetailsList) {
+    _listenToPurchaseUpdated(purchaseDetailsList);
+  }, onDone: () {
+    _subscription.cancel();
+  }, onError: (error) {
+    // handle error here.
+  });
+```
+
 ### Complete a purchase
 
 The `InAppPurchaseConnection.purchaseUpdatedStream` will send purchase updates after
 you initiate the purchase flow using `InAppPurchaseConnection.buyConsumable` or `InAppPurchaseConnection.buyNonConsumable`.
-After delivering the content to the user, you need to call `InAppPurchaseConnection.completePurchase` to tell the `GooglePlay`
-and `AppStore` that the purchase has been finished.
+After processing the purchase event, you need to call `InAppPurchaseConnection.completePurchase` to tell the `GooglePlay`
+and `AppStore` that the purchase has been finished. You should use the `PurchaseDetails.pendingCompletePurchase`
+property to check if you should complete the purchase:
+
+```dart
+void _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) {
+  purchaseDetailsList.forEach((PurchaseDetails purchaseDetails) async {
+    if (purchaseDetails.status == PurchaseStatus.pending) {
+      // TODO: Show some indication that purchase is still being processed...
+      return;
+    }
+
+    if (purchaseDetails.status == PurchaseStatus.error) {
+      // TODO: Handle the error, user might have cancelled the purchase...
+    } else {
+      // TODO: Verify purchase and deliver content...
+    }
+
+    // A purchase should always be completed if `pendingCompletePurchase` is `true`,
+    // independent of the current purchase state.
+    if (purchaseDetails.pendingCompletePurchase) {
+        await InAppPurchaseConnection.instance.completePurchase(purchaseDetails);
+    }
+  });
+}
+```
 
 WARNING! Failure to call `InAppPurchaseConnection.completePurchase` and get a successful response within 3 days of the purchase will result a refund.
 
@@ -202,12 +226,26 @@ InAppPurchaseConnection.instance
     .buyNonConsumable(purchaseParam: purchaseParam);
 ```
 
+### Example
+
+A complete implementation of the steps above can be found in the [example](https://github.com/flutter/plugins/blob/master/packages/in_app_purchase/example) App.
+The overview below contains direct references to the code implementing that specific step in the example app:
+
+- [Initialize the plugin](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L50)
+- [Connecting to the StoreFront](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L65)
+- [Loading products for sale](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L79)
+- [Loading previous purchases](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L109)
+- [Making a purchase](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L263)
+- [Listening to purchase updates](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L53)
+- [Complete a purchase](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L378)
+- [Upgrading or Downgrading an existing InApp Subscription](https://github.com/flutter/plugins/blob/c631fa190b5865d7263c93adfa3706c4f0a0a6e9/packages/in_app_purchase/in_app_purchase/example/lib/main.dart#L263)
+
 ## Development
 
 This plugin uses
 [json_serializable](https://pub.dev/packages/json_serializable) for the
-many data structs passed between the underlying platform layers and Dart. After
-editing any of the serialized data structs, rebuild the serializers by running
+many data structures passed between the underlying platform layers and Dart. After
+editing any of the serialized data structures, rebuild the serializers by running
 `flutter packages pub run build_runner build --delete-conflicting-outputs`.
 `flutter packages pub run build_runner watch --delete-conflicting-outputs` will
 watch the filesystem for changes.
