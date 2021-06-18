@@ -1,3 +1,7 @@
+## 0.7.5
+
+* Implemented pickMultiImage() for Android and iOS14+.
+
 ## 0.7.4
 
 * Update flutter_plugin_android_lifecycle dependency to 2.0.1 to fix an R8 issue
@@ -5,7 +9,7 @@
 
 ## 0.7.3
 
-* Endorse image_picker_for_web
+* Endorse image_picker_for_web.
 
 ## 0.7.2+1
 
@@ -13,7 +17,7 @@
 
 ## 0.7.2
 
-* Run CocoaPods iOS tests in RunnerUITests target
+* Run CocoaPods iOS tests in RunnerUITests target.
 
 ## 0.7.1
 
